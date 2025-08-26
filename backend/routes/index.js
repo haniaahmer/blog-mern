@@ -1,4 +1,3 @@
-// routes/index.js
 import express from 'express';
 import authRoutes from './authRoutes.js';
 import blogRoutes from './blogRoutes.js';
@@ -8,14 +7,12 @@ import adminRoutes from './adminRoutes.js';
 
 const router = express.Router();
 
-// API Routes
 router.use('/auth', authRoutes);
 router.use('/blogs', blogRoutes);
 router.use('/comments', commentRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/admin', adminRoutes);
 
-// Health check route
 router.get('/', (req, res) => {
   res.json({
     message: 'Blog CMS API is running!',
@@ -30,7 +27,6 @@ router.get('/', (req, res) => {
   });
 });
 
-// Handle 404 for API routes
 router.use('*', (req, res) => {
   res.status(404).json({
     error: 'API endpoint not found',

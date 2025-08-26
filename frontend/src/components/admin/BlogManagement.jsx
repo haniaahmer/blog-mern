@@ -29,7 +29,7 @@ export default function BlogManagement() {
       setError("");
       
       const token = localStorage.getItem("adminToken");
-      const response = await axios.get("http://localhost:8000/api/blogs", {
+      const response = await axios.get("/blogs", {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -81,7 +81,7 @@ export default function BlogManagement() {
     try {
       const token = localStorage.getItem("adminToken");
       await axios.put(
-        `http://localhost:8000/api/blogs/${id}/toggle-publish`,
+        `/blogs/${id}/toggle-publish`,
         { published: !currentStatus },
         {
           headers: { 

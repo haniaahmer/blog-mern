@@ -1,85 +1,44 @@
-// controllers/commentController.js
 import Comment from "../models/Comment.js";
 import Blog from "../models/Blog.js";
-import nodemailer from "nodemailer";
 
-// Email setup (dummy example, replace with your SMTP)
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.ADMIN_EMAIL,
-    pass: process.env.ADMIN_PASS,
-  },
-});
-
-// ✅ Add a new comment (public)
-export const addComment = async (req, res) => {
+export const createComment = async (req, res) => {
+  console.log("🔔 [createComment] Request body:", req.body);
   try {
-    const { blogId, name, email, text } = req.body;
+    const { blogId, content, authorName, authorEmail } = req.body;
 
-    if (!blogId || !name || !email || !text) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!blogId || !content || !authorName) {
+      return res.status(400).json({ error: "Blog ID, content, and author name are required" });
     }
 
     const blog = await Blog.findById(blogId);
-    if (!blog) return res.status(404).json({ message: "Blog not found" });
+    if (!blog || !blog.published) {
+      return res.status(404).json({ error: "Blog not found or not published" });
+    }
 
-    const comment = new Comment({
+    const comment = await Comment.create({
       blog: blogId,
-      name,
-      email,
-      text,
-      approved: false, // default pending
+      content: content.trim(),
+      authorName: authorName.trim(),
+      authorEmail: authorEmail ? authorEmail.trim() : undefined,
     });
 
-    await comment.save();
-
-    // send notification email to admin
-    await transporter.sendMail({
-      from: `"Blog CMS" <${process.env.ADMIN_EMAIL}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: "New Comment Submitted",
-      text: `A new comment was submitted on blog "${blog.title}" by ${name} (${email}).`,
-    });
-
-    res.status(201).json({ message: "Comment submitted for review" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.log("✅ [createComment] Comment created:", comment._id);
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error("❌ [createComment] Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// ✅ Get approved comments for a blog (public)
-export const getBlogComments = async (req, res) => {
+export const getCommentsByBlog = async (req, res) => {
+  console.log("🔔 [getCommentsByBlog] Blog ID:", req.params.blogId);
   try {
-    const { blogId } = req.params;
-    const comments = await Comment.find({ blog: blogId, approved: true }).sort({ createdAt: -1 });
+    const comments = await Comment.find({ blog: req.params.blogId })
+      .sort({ createdAt: -1 });
+    console.log(`✅ [getCommentsByBlog] Returned ${comments.length} comments`);
     res.json(comments);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ✅ Admin approve comment
-export const approveComment = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const comment = await Comment.findByIdAndUpdate(id, { approved: true }, { new: true });
-    if (!comment) return res.status(404).json({ message: "Comment not found" });
-    res.json({ message: "Comment approved", comment });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ✅ Admin reject/delete comment
-export const rejectComment = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const comment = await Comment.findByIdAndDelete(id);
-    if (!comment) return res.status(404).json({ message: "Comment not found" });
-    res.json({ message: "Comment rejected and deleted" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
+  } catch (error) {
+    console.error("❌ [getCommentsByBlog] Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };

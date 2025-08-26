@@ -1,24 +1,46 @@
-// Backend: server/controllers/blogController.js
 import Blog from "../models/Blog.js";
 import slugify from "slugify";
 
-// ✅ Create Blog
 export const createBlog = async (req, res) => {
+  console.log("🔔 [createBlog] Request body:", req.body);
+  console.log("🔔 [createBlog] Uploaded files:", req.files);
   try {
-    const { title, content } = req.body;
-    const image = req.file ? req.file.filename : null;
+    const { title, content, category, tags, excerpt, published } = req.body;
 
-    // Save to DB (example)
-    const blog = await Blog.create({ title, content, image });
+    if (!title || !content || !category) {
+      return res.status(400).json({ error: "Title, content, and category are required" });
+    }
 
+    let baseSlug = slugify(title, { lower: true, strict: true });
+    let slug = baseSlug;
+    let counter = 1;
+    while (await Blog.findOne({ slug })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+
+    const images = req.files?.map(file => file.filename) || [];
+
+    // Only admin authors now
+    const blog = await Blog.create({
+      title: title.trim(),
+      content,
+      category: category.trim(),
+      tags: tags ? tags.split(",").map(tag => tag.trim()) : [],
+      excerpt: excerpt ? excerpt.trim() : "",
+      published: published === "true" || published === true,
+      images,
+      slug,
+      authorAdmin: req.user.id,
+    });
+
+    console.log("✅ [createBlog] Blog created:", blog._id);
     res.status(201).json(blog);
   } catch (err) {
+    console.error("❌ [createBlog] Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
-
-// ✅ Update Blog
 export const updateBlog = async (req, res) => {
   console.log("🔔 [updateBlog] Blog ID:", req.params.id);
   console.log("🔔 [updateBlog] Request body:", req.body);
@@ -33,12 +55,11 @@ export const updateBlog = async (req, res) => {
       return res.status(404).json({ message: "Blog not found" });
     }
 
-    // Authorization check
-    if (blog.author.toString() !== req.user.id && req.user.role !== "admin") {
+    // Only admin authors now
+    if (blog.authorAdmin && blog.authorAdmin.toString() !== req.user.id && req.user.role !== 1 && req.user.role !== 3) {
       return res.status(403).json({ message: "Not authorized to update this blog" });
     }
 
-    // Update fields
     if (title && title !== blog.title) {
       let baseSlug = slugify(title, { lower: true, strict: true });
       let slug = baseSlug;
@@ -65,17 +86,40 @@ export const updateBlog = async (req, res) => {
   }
 };
 
-// Other functions (getBlogs, getBlogBySlug, deleteBlog, likeBlog) remain unchanged
+export const deleteBlog = async (req, res) => {
+  console.log("🔔 [deleteBlog] Blog ID:", req.params.id);
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      console.warn("⚠️ [deleteBlog] Blog not found");
+      return res.status(404).json({ message: "Blog not found" });
+    }
+
+    // Only admin authors now
+    if (blog.authorAdmin && blog.authorAdmin.toString() !== req.user.id && req.user.role !== 1 && req.user.role !== 3) {
+      return res.status(403).json({ message: "Not authorized to delete this blog" });
+    }
+
+    await Blog.findByIdAndDelete(req.params.id);
+    console.log("✅ [deleteBlog] Blog deleted:", req.params.id);
+    res.json({ message: "Blog deleted successfully" });
+  } catch (error) {
+    console.error("❌ [deleteBlog] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getBlogs = async (req, res) => {
   console.log("🔔 [getBlogs] Query params:", req.query);
   try {
     const { page = 1, limit = 10, category, tag } = req.query;
-    const query = {};
+    const query = { published: true };
+
     if (category) query.category = category;
     if (tag) query.tags = tag;
 
     const blogs = await Blog.find(query)
-      .populate('author', 'email')
+      .populate('authorAdmin', 'email')
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .sort({ createdAt: -1 });
@@ -97,7 +141,8 @@ export const getBlogs = async (req, res) => {
 export const getBlogBySlug = async (req, res) => {
   console.log("🔔 [getBlogBySlug] Slug:", req.params.slug);
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug }).populate('author', 'email');
+    const blog = await Blog.findOne({ slug: req.params.slug, published: true })
+      .populate('authorAdmin', 'email');
     if (!blog) {
       console.warn("⚠️ [getBlogBySlug] Blog not found");
       return res.status(404).json({ message: "Blog not found" });
@@ -113,35 +158,13 @@ export const getBlogBySlug = async (req, res) => {
   }
 };
 
-export const deleteBlog = async (req, res) => {
-  console.log("🔔 [deleteBlog] Blog ID:", req.params.id);
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) {
-      console.warn("⚠️ [deleteBlog] Blog not found");
-      return res.status(404).json({ message: "Blog not found" });
-    }
-
-    if (blog.author.toString() !== req.user.id && req.user.role !== "admin") {
-      return res.status(403).json({ message: "Not authorized to delete this blog" });
-    }
-
-    await Blog.findByIdAndDelete(req.params.id);
-    console.log("✅ [deleteBlog] Blog deleted:", req.params.id);
-    res.json({ message: "Blog deleted successfully" });
-  } catch (error) {
-    console.error("❌ [deleteBlog] Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
 export const likeBlog = async (req, res) => {
   console.log("🔔 [likeBlog] Blog ID:", req.params.id);
   try {
     const blog = await Blog.findById(req.params.id);
-    if (!blog) {
-      console.warn("⚠️ [likeBlog] Blog not found");
-      return res.status(404).json({ message: "Blog not found" });
+    if (!blog || !blog.published) {
+      console.warn("⚠️ [likeBlog] Blog not found or not published");
+      return res.status(404).json({ message: "Blog not found or not published" });
     }
 
     blog.likes += 1;

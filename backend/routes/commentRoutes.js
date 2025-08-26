@@ -1,21 +1,9 @@
-// routes/commentRoutes.js
 import express from "express";
-import { 
-  addComment, 
-  getBlogComments, 
-  approveComment, 
-  rejectComment 
-} from "../controllers/commentController.js";
-import { protect, authorize } from "../Middlewares/auth.js";
+import { createComment, getCommentsByBlog } from "../controllers/commentController.js";
 
 const router = express.Router();
 
-// Public routes
-router.post("/", addComment);
-router.get("/blog/:blogId", getBlogComments);
-
-// Admin routes
-router.put("/:id/approve", protect, authorize("admin"), approveComment);
-router.delete("/:id/reject", protect, authorize("admin"), rejectComment);
+router.post("/", createComment);
+router.get("/blog/:blogId", getCommentsByBlog);
 
 export default router;

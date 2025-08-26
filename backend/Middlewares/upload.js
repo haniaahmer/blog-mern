@@ -1,41 +1,38 @@
-// Backend: server/Middlewares/upload.js
 import multer from "multer";
 import path from "path";
-import fs from "fs";
 
-// Ensure the uploads directory exists
-const dir = "uploads";
-if (!fs.existsSync(dir)) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
+// Set storage engine
 const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, dir),
-  filename: (_, file, cb) => {
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`);
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
   },
+  filename: function (req, file, cb) {
+    cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
+  }
 });
 
-const fileFilter = (_, file, cb) => {
-  const ok = /image\/(png|jpe?g|webp|gif)/.test(file.mimetype);
-  cb(ok ? null : new Error("Only image files (png, jpg, jpeg, webp, gif) are allowed"), ok);
-};
-
-// Export the base Multer instance (configurable)
-export const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
+// Multer instance
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1000000 }, // 1MB limit
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  }
 });
 
-// Optional: Export pre-configured middlewares for common use cases
-// For multiple images (e.g., blogs)
-export const uploadMultiple = upload.array("images", 5);
+// Export middleware
+export const uploadSingle = upload.single("image");        // for one file
+export const uploadMultiple = upload.array("images", 5);   // for multiple files
 
-// For single image (e.g., /image route)
-export const uploadSingle = upload.single("image");
+// Check file type
+function checkFileType(file, cb) {
+  const filetypes = /jpeg|jpg|png|gif/;
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = filetypes.test(file.mimetype);
 
-// If you need a default export, export the base instance
-export default upload;
+  if (mimetype && extname) {
+    cb(null, true);
+  } else {
+    cb("Error: Images only!");
+  }
+}
