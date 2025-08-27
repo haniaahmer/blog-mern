@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-  name: {
+  username: {
     type: String,
     required: true,
   },
@@ -14,25 +14,13 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: function () {
-      return this.role === 2; // Only required for editors
+      return this.role === 'editor'; // Only required for editors
     },
   },
-  phone: {
-    type: String,
-    required: true,
-  },
-  address: {
-    type: String,
-    required: true,
-  },
-  answer: {
-    type: String,
-    required: true,
-  },
   role: {
-    type: Number,
-    default: 0, // 0 for user, 2 for editor
-    enum: [0, 2],
+    type: String,
+    default: 'user', // Default to user
+    enum: ['user', 'editor'],
   },
 }, { timestamps: true });
 

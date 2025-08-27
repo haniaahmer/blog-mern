@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const blogSchema = new mongoose.Schema(
   {
@@ -30,10 +30,18 @@ const blogSchema = new mongoose.Schema(
         type: String,
       },
     ],
-    authorAdmin: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Admin",
-    },
+    author: {
+  id: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    refPath: 'author.type', // Dynamically reference the model based on author.type
+  },
+  type: {
+    type: String,
+    enum: ['Admin', 'User'],
+    required: true,
+  },
+},
     views: {
       type: Number,
       default: 0,
@@ -44,7 +52,7 @@ const blogSchema = new mongoose.Schema(
     },
     excerpt: {
       type: String,
-      default: "",
+      default: '',
     },
     published: {
       type: Boolean,
@@ -56,4 +64,4 @@ const blogSchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.model("Blog", blogSchema);
+export default mongoose.model('Blog', blogSchema);

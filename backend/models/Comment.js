@@ -1,31 +1,24 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const commentSchema = new mongoose.Schema({
-  blog: {
+  blogId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Blog",
-    required: true
+    ref: 'Blog',
+    required: true,
   },
   content: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
   },
-  authorName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  authorEmail: {
-    type: String,
-    trim: true
+  author: {
+    name: { type: String, required: true }, // Allow anonymous names for non-logged-in users
+    email: { type: String }, // Optional email
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
-}, {
-  timestamps: true
+    default: Date.now,
+  },
 });
 
-export default mongoose.model("Comment", commentSchema);
+export default mongoose.model('Comment', commentSchema);

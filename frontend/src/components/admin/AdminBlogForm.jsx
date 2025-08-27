@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
-import jwtDecode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 
 const AdminBlogForm = ({ blogData, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -16,40 +16,53 @@ const AdminBlogForm = ({ blogData, onSuccess }) => {
   const [preview, setPreview] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
 
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
+    console.log("[AdminBlogForm] Checking token in localStorage:", token ? "Present" : "Missing");
+
     if (!token) {
+      console.log("[AdminBlogForm] No token found, redirecting to login.");
       navigate("/admin/login");
       return;
     }
 
     try {
       const decoded = jwtDecode(token);
-      const validRoles = [1, 2, 3];
-      if (!validRoles.includes(decoded.role)) {
+      console.log("[AdminBlogForm] Decoded token:", decoded);
+      
+      // Check if user has admin or editor privileges
+      const hasAdminAccess = ['admin', 'editor', 'superadmin'].includes(decoded.role);
+      
+      if (!hasAdminAccess) {
+        console.log("[AdminBlogForm] Invalid role:", decoded.role);
         setError("Access denied: Only admins and editors can access this page");
         localStorage.removeItem("adminToken");
         navigate("/admin/login");
+        return;
+      }
+
+      // If we get here, user is authorized
+      setIsAuthorized(true);
+
+      if (blogData) {
+        setFormData({
+          title: blogData.title || "",
+          category: blogData.category || "",
+          tags: blogData.tags?.join(", ") || "",
+          content: blogData.content || "",
+          excerpt: blogData.excerpt || "",
+          published: blogData.published || false,
+        });
+        setPreview(blogData.images || []);
       }
     } catch (err) {
       console.error("Token decode error:", err);
       localStorage.removeItem("adminToken");
       navigate("/admin/login");
-    }
-
-    if (blogData) {
-      setFormData({
-        title: blogData.title || "",
-        category: blogData.category || "",
-        tags: blogData.tags?.join(", ") || "",
-        content: blogData.content || "",
-        excerpt: blogData.excerpt || "",
-        published: blogData.published || false,
-      });
-      setPreview(blogData.images || []);
     }
   }, [blogData, navigate]);
 
@@ -118,6 +131,15 @@ const AdminBlogForm = ({ blogData, onSuccess }) => {
       setLoading(false);
     }
   };
+
+  // Don't render the form until we've checked authorization
+  if (!isAuthorized) {
+    return (
+      <div className="max-w-2xl mx-auto p-4">
+        <p className="text-gray-500">Checking permissions...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-4">

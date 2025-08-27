@@ -29,14 +29,25 @@ export default function BlogManagement() {
       setError("");
       
       const token = localStorage.getItem("adminToken");
-      const response = await axios.get("/blogs", {
+      const response = await axios.get("/api/blogs/get", { // Added /api prefix
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
       });
       
-      setBlogs(response.data.blogs || response.data);
+      // Handle different response structures safely
+      let blogsData = [];
+      
+      if (Array.isArray(response.data)) {
+        blogsData = response.data;
+      } else if (response.data && Array.isArray(response.data.blogs)) {
+        blogsData = response.data.blogs;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        blogsData = response.data.data;
+      }
+      
+      setBlogs(blogsData);
     } catch (error) {
       console.error("Error fetching blogs:", error);
       
@@ -47,6 +58,7 @@ export default function BlogManagement() {
       }
       
       setError("Failed to load blogs");
+      setBlogs([]); // Ensure blogs is always an array
     } finally {
       setLoading(false);
     }
@@ -61,14 +73,14 @@ export default function BlogManagement() {
 
     try {
       const token = localStorage.getItem("adminToken");
-      await axios.delete(`http://localhost:8000/api/blogs/${id}`, {
+      await axios.delete(`/api/blogs/delete/${id}`, { // Added /api prefix
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
       });
       
-      setBlogs(blogs.filter(blog => blog._id !== id));
+      setBlogs(prevBlogs => prevBlogs.filter(blog => blog._id !== id));
     } catch (error) {
       console.error("Error deleting blog:", error);
       alert("Failed to delete blog post");
@@ -81,7 +93,7 @@ export default function BlogManagement() {
     try {
       const token = localStorage.getItem("adminToken");
       await axios.put(
-        `/blogs/${id}/toggle-publish`,
+        `/api/blogs/update/${id}/toggle-publish`, // Added /api prefix
         { published: !currentStatus },
         {
           headers: { 
@@ -91,7 +103,7 @@ export default function BlogManagement() {
         }
       );
       
-      setBlogs(blogs.map(blog => 
+      setBlogs(prevBlogs => prevBlogs.map(blog => 
         blog._id === id ? { ...blog, published: !currentStatus } : blog
       ));
     } catch (error) {
@@ -104,18 +116,18 @@ export default function BlogManagement() {
     navigate(`/admin/edit-blog/${blogId}`);
   };
 
-  // Filter and search blogs
-  const filteredBlogs = blogs.filter(blog => {
-    const matchesSearch = blog.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         blog.category.toLowerCase().includes(searchTerm.toLowerCase());
+  // Safe filter and search blogs
+  const filteredBlogs = Array.isArray(blogs) ? blogs.filter(blog => {
+    const matchesSearch = blog.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         blog.category?.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filter === "published") return blog.published && matchesSearch;
     if (filter === "draft") return !blog.published && matchesSearch;
     return matchesSearch;
-  });
+  }) : [];
 
-  const publishedCount = blogs.filter(b => b.published).length;
-  const draftCount = blogs.filter(b => !b.published).length;
+  const publishedCount = Array.isArray(blogs) ? blogs.filter(b => b.published).length : 0;
+  const draftCount = Array.isArray(blogs) ? blogs.filter(b => !b.published).length : 0;
 
   if (loading) {
     return (
@@ -264,7 +276,7 @@ export default function BlogManagement() {
                             {blog.title}
                           </p>
                           <p className="text-sm text-gray-500 line-clamp-1">
-                            {blog.excerpt || blog.content?.substring(0, 60) + "..."}
+                            {blog.excerpt || (blog.content ? blog.content.substring(0, 60) + "..." : "No content")}
                           </p>
                         </div>
                       </div>
@@ -289,7 +301,7 @@ export default function BlogManagement() {
                       {blog.views || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(blog.createdAt).toLocaleDateString()}
+                      {blog.createdAt ? new Date(blog.createdAt).toLocaleDateString() : "Unknown date"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">

@@ -4,69 +4,101 @@ import User from '../models/authModel.js';
 import Admin from '../models/Admin.js';
 
 export const adminLogin = async (req, res) => {
-  const { username, password } = req.body;
-  console.log("🔍 [adminLogin] Login attempt for username:", username);
+  const { username, password, role } = req.body;
+  console.log("🔍 [adminLogin] Login attempt:", { username, role });
   
   try {
-    if (!username || !password) {
-      console.warn("⚠️ [adminLogin] Missing credentials");
-      return res.status(400).json({ error: 'Username and password are required' });
+    if (!username || !password || !role) {
+      console.warn("⚠️ [adminLogin] Missing credentials or role");
+      return res.status(400).json({ error: 'Username, password, and role are required' });
     }
 
-    const admin = await Admin.findOne({ username });
-    console.log("🔍 [adminLogin] Admin search result:", admin ? "Found" : "Not found");
-    
-    if (!admin) {
-      console.warn("⚠️ [adminLogin] Admin not found for username:", username);
+    if (!['admin', 'editor', 'superadmin'].includes(role)) {
+      console.warn("⚠️ [adminLogin] Invalid role:", role);
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    let user = null;
+
+    // Check Admin collection for admin or superadmin
+    if (role === 'admin' || role === 'superadmin') {
+      user = await Admin.findOne({ username });
+      console.log("🔍 [adminLogin] Admin search result:", user ? {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      } : "Not found");
+      
+      if (!user || user.role !== role) {
+        return res.status(401).json({ error: 'Invalid credentials or role' });
+      }
+    } 
+    // Check User collection for editor
+    else if (role === 'editor') {
+      user = await User.findOne({ 
+        $or: [
+          { email: username },
+          { username: username }
+        ],
+        role: 'editor'
+      });
+      console.log("🔍 [adminLogin] Editor search result:", user ? {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      } : "Not found");
+      
+      if (!user || user.role !== 'editor') {
+        return res.status(401).json({ error: 'Invalid credentials or not an editor' });
+      }
+    }
+
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log("🔍 [adminLogin] Admin details:", {
-      id: admin._id,
-      username: admin.username,
-      email: admin.email,
-      role: admin.role
-    });
-
-    const isMatch = await admin.comparePassword(password);
+    const isMatch = await user.comparePassword(password);
     console.log("🔍 [adminLogin] Password match:", isMatch);
     
     if (!isMatch) {
-      console.warn("⚠️ [adminLogin] Invalid password for username:", username);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    const tokenPayload = { 
+      id: user._id.toString(), 
+      role: user.role 
+    };
+    console.log("🔍 [adminLogin] Token payload:", tokenPayload);
+
     const token = jwt.sign(
-      { id: admin._id, role: admin.role },
+      tokenPayload,
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    console.log("✅ [adminLogin] Admin login successful:", {
-      id: admin._id,
-      username: admin.username,
-      role: admin.role
-    });
+    console.log("✅ [adminLogin] Login successful, token generated with role:", user.role);
 
     res.json({
-      message: 'Admin login successful',
+      message: `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} login successful`,
       token,
       user: {
-        id: admin._id,
-        username: admin.username,
-        email: admin.email,
-        role: admin.role,
+        id: user._id,
+        username: user.username || user.email,
+        email: user.email,
+        role: user.role,
       },
     });
   } catch (error) {
-    console.error('❌ [adminLogin] Admin login error:', error);
+    console.error('❌ [adminLogin] Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
 export const editorLogin = async (req, res) => {
   const { username, password } = req.body;
-  console.log("🔍 [editorLogin] Login attempt for username:", username);
+  console.log("🔍 [editorLogin] Login attempt:", { username });
   
   try {
     if (!username || !password) {
@@ -74,63 +106,96 @@ export const editorLogin = async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    // Try to find by email first (since User model uses email as username)
-    const user = await User.findOne({ 
+    // Find editor in User collection by username or email
+    const editor = await User.findOne({ 
       $or: [
         { email: username },
-        { name: username }
-      ]
+        { username: username }
+      ],
+      role: 'editor' 
     });
     
-    console.log("🔍 [editorLogin] User search result:", user ? "Found" : "Not found");
+    console.log("🔍 [editorLogin] Editor search result:", editor ? {
+      id: editor._id,
+      username: editor.username,
+      email: editor.email,
+      role: editor.role
+    } : "Not found or not an editor");
     
-    if (!user || user.role !== 2) {
-      console.warn("⚠️ [editorLogin] User not found or not an editor:", { 
-        found: !!user, 
-        role: user?.role 
-      });
+    if (!editor) {
       return res.status(401).json({ error: 'Invalid credentials or not an editor' });
     }
 
-    console.log("🔍 [editorLogin] User details:", {
-      id: user._id,
-      email: user.email,
-      role: user.role
-    });
-
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await editor.comparePassword(password);
     console.log("🔍 [editorLogin] Password match:", isMatch);
     
     if (!isMatch) {
-      console.warn("⚠️ [editorLogin] Invalid password for username:", username);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    const tokenPayload = { 
+      id: editor._id.toString(), 
+      role: editor.role 
+    };
+    console.log("🔍 [editorLogin] Token payload:", tokenPayload);
+
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      tokenPayload,
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    console.log("✅ [editorLogin] Editor login successful:", {
-      id: user._id,
-      email: user.email,
-      role: user.role
-    });
+    console.log("✅ [editorLogin] Login successful, token generated");
 
     res.json({
       message: 'Editor login successful',
       token,
       user: {
-        id: user._id,
-        username: user.email, // Use email as username for User model
-        email: user.email,
-        role: user.role,
+        id: editor._id,
+        username: editor.username,
+        email: editor.email,
+        role: editor.role,
       },
     });
   } catch (error) {
-    console.error('❌ [editorLogin] Editor login error:', error);
+    console.error('❌ [editorLogin] Error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const verifyAdmin = async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let user = null;
+
+    if (decoded.role === 'admin' || decoded.role === 'superadmin') {
+      user = await Admin.findById(decoded.id);
+    } else if (decoded.role === 'editor') {
+      user = await User.findById(decoded.id);
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    res.json({ 
+      isAdmin: ['admin', 'superadmin', 'editor'].includes(user.role),
+      user: {
+        id: user._id,
+        username: user.username || user.email,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Verify admin error:', error);
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
@@ -138,14 +203,10 @@ export const seedAdmin = async (req, res) => {
   console.log("🔍 [seedAdmin] Seeding admin user");
   
   try {
-    // Check if admin exists by username instead of email
     const exists = await Admin.findOne({ username: 'admin' });
     console.log("🔍 [seedAdmin] Admin exists check:", exists ? "Already exists" : "Does not exist");
     
     if (exists) {
-      // Log existing admin details for debugging
-      console.log("🔍 [seedAdmin] Existing admin details:", JSON.stringify(exists.toObject(), null, 2));
-      
       return res.json({ 
         ok: true, 
         seeded: false, 
@@ -162,20 +223,13 @@ export const seedAdmin = async (req, res) => {
       username: 'admin',
       email: 'admin@site.com',
       password: 'Admin@123',
-      role: 1,
+      role: 'admin',
     };
     
     console.log("🔍 [seedAdmin] Creating admin with data:", adminData);
     
     const admin = new Admin(adminData);
-    
-    // Log before saving
-    console.log("🔍 [seedAdmin] Admin object before save:", JSON.stringify(admin.toObject(), null, 2));
-    
     await admin.save();
-    
-    // Log after saving
-    console.log("🔍 [seedAdmin] Admin object after save:", JSON.stringify(admin.toObject(), null, 2));
     
     console.log("✅ [seedAdmin] Admin created successfully:", {
       id: admin._id,
@@ -190,7 +244,7 @@ export const seedAdmin = async (req, res) => {
       username: 'admin',
       password: 'Admin@123',
       email: 'admin@site.com',
-      role: 1,
+      role: 'admin',
       adminId: admin._id
     });
   } catch (error) {
@@ -199,12 +253,18 @@ export const seedAdmin = async (req, res) => {
   }
 };
 
-// Add a new function to create an editor user
 export const seedEditor = async (req, res) => {
-  console.log("🔍 [seedEditor] Seeding editor user");
+  const { username = 'editor', email = 'editor@site.com', password = 'Editor@123' } = req.body;
+  console.log("🔍 [seedEditor] Seeding editor user:", { username, email });
   
   try {
-    const exists = await User.findOne({ email: 'editor@site.com' });
+    const exists = await User.findOne({ 
+      $or: [
+        { email },
+        { username }
+      ]
+    });
+    
     console.log("🔍 [seedEditor] Editor exists check:", exists ? "Already exists" : "Does not exist");
     
     if (exists) {
@@ -213,6 +273,7 @@ export const seedEditor = async (req, res) => {
         seeded: false, 
         message: 'Editor already exists',
         editor: {
+          username: exists.username,
           email: exists.email,
           role: exists.role
         }
@@ -220,18 +281,21 @@ export const seedEditor = async (req, res) => {
     }
     
     const editor = new User({
-      name: 'Editor User',
-      email: 'editor@site.com',
-      password: 'Editor@123',
-      phone: '1234567890',
+      username,
+      email,
+      password,
+      role: 'editor',
+      // Add default values for required fields to avoid validation errors
+      name: username || 'Editor User',
+      phone: '000-000-0000',
       address: 'Editor Address',
-      answer: 'editor-security-answer',
-      role: 2, // Editor role
+      answer: 'editor-security'
     });
     
     await editor.save();
     console.log("✅ [seedEditor] Editor created successfully:", {
       id: editor._id,
+      username: editor.username,
       email: editor.email,
       role: editor.role
     });
@@ -239,12 +303,78 @@ export const seedEditor = async (req, res) => {
     res.json({
       ok: true,
       seeded: true,
-      email: 'editor@site.com',
-      password: 'Editor@123',
-      role: 2
+      username: editor.username,
+      email: editor.email,
+      password: password,
+      role: 'editor',
+      editorId: editor._id
     });
   } catch (error) {
     console.error('❌ [seedEditor] Seed editor error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+};
+
+// New function to create multiple editors
+export const seedMultipleEditors = async (req, res) => {
+  const editors = [
+    { username: 'editor1', email: 'editor1@site.com', password: 'Editor1@123' },
+    { username: 'editor2', email: 'editor2@site.com', password: 'Editor2@123' },
+    { username: 'editor3', email: 'editor3@site.com', password: 'Editor3@123' }
+  ];
+
+  console.log("🔍 [seedMultipleEditors] Seeding multiple editors");
+  
+  try {
+    const results = [];
+    
+    for (const editorData of editors) {
+      const exists = await User.findOne({ 
+        $or: [
+          { email: editorData.email },
+          { username: editorData.username }
+        ]
+      });
+      
+      if (exists) {
+        results.push({
+          username: editorData.username,
+          email: editorData.email,
+          seeded: false,
+          message: 'Editor already exists'
+        });
+        continue;
+      }
+      
+      const editor = new User({
+        username: editorData.username,
+        email: editorData.email,
+        password: editorData.password,
+        role: 'editor',
+        name: editorData.username,
+        phone: '000-000-0000',
+        address: 'Editor Address',
+        answer: 'editor-security'
+      });
+      
+      await editor.save();
+      results.push({
+        username: editorData.username,
+        email: editorData.email,
+        seeded: true,
+        password: editorData.password,
+        editorId: editor._id
+      });
+      
+      console.log(`✅ [seedMultipleEditors] Editor ${editorData.username} created successfully`);
+    }
+    
+    res.json({
+      ok: true,
+      results
+    });
+  } catch (error) {
+    console.error('❌ [seedMultipleEditors] Seed multiple editors error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 };

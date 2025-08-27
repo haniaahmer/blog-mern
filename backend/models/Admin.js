@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
  * @property {string} username - Unique username for the admin
  * @property {string} email - Unique email address for the admin
  * @property {string} password - Hashed password for the admin
- * @property {number} role - Role of the admin (1 for admin, 3 for superadmin)
+ * @property {string} role - Role of the admin (admin or superadmin)
  * @property {Date} createdAt - Timestamp when the admin was created
  */
 const adminSchema = new mongoose.Schema({
@@ -31,9 +31,9 @@ const adminSchema = new mongoose.Schema({
     required: true,
   },
   role: {
-    type: Number,
-    default: 1, // 1 for admin, 3 for superadmin
-    enum: [1, 3],
+    type: String,
+    default: 'admin',
+    enum: ['admin', 'superadmin'],
   },
   createdAt: {
     type: Date,
@@ -46,7 +46,6 @@ const adminSchema = new mongoose.Schema({
  * @param {Function} next - Mongoose middleware next function
  */
 adminSchema.pre('save', async function (next) {
-  // Set email if not provided
   if (!this.email) {
     this.email = `${this.username}@admin.com`;
   }
@@ -66,8 +65,4 @@ adminSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-/**
- * Admin model
- * @module Admin
- */
 export default mongoose.model('Admin', adminSchema);
