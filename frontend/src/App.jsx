@@ -14,20 +14,15 @@ import AdminBlogForm from "./components/admin/AdminBlogForm";
 import BlogManagement from "./components/admin/BlogManagement";
 import CommentManagement from "./components/admin/CommentManagement";
 import EditBlogWrapper from "./components/admin/EditBlogWrapper";
-import NotFound from "./pages/NotFound";
-// Layout
-import PublicLayout from "./components/layouts/PublicLayout";
 
-// CSS
+// Layout & Utils
+import PublicLayout from "./components/layouts/PublicLayout";
+import NotFound from "./pages/NotFound";
+import { ProtectedRoute, AuthRedirectRoute } from "./utils/Routes.jsx"; // ✅ imported here
+
 import "./App.css";
 
-// Protected Route
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = !!localStorage.getItem("adminToken");
-  return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
-};
-
-// Axios interceptors
+/* ------------------ Axios Interceptors ------------------ */
 const setupAxiosInterceptors = () => {
   axios.interceptors.response.use(
     (response) => response,
@@ -42,6 +37,7 @@ const setupAxiosInterceptors = () => {
   );
 };
 
+/* ------------------ Main App ------------------ */
 function App() {
   const [loading, setLoading] = useState(true);
 
@@ -64,38 +60,28 @@ function App() {
 
   return (
     <Router>
-      <div className="App min-h-screen bg-gray-50">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
-          <Route path="/blogs" element={<PublicLayout><AllBlogs /></PublicLayout>} />
-          <Route path="/blog/:slug" element={<PublicLayout><BlogDetail /></PublicLayout>} />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+        <Route path="/blogs" element={<PublicLayout><AllBlogs /></PublicLayout>} />
+        <Route path="/blog/:slug" element={<PublicLayout><BlogDetail /></PublicLayout>} />
 
-          {/* Admin Auth */}
-          <Route
-            path="/admin/login"
-            element={
-              localStorage.getItem("adminToken")
-                ? <Navigate to="/admin/dashboard" replace />
-                : <AdminLogin />
-            }
-          />
+        {/* Admin Auth */}
+        <Route path="/admin/login" element={<AuthRedirectRoute><AdminLogin /></AuthRedirectRoute>} />
 
-          {/* Admin Protected */}
-          <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/blogs" element={<ProtectedRoute><BlogManagement /></ProtectedRoute>} />
-          <Route path="/admin/create-blog" element={<ProtectedRoute><AdminBlogForm /></ProtectedRoute>} />
-          <Route path="/admin/edit-blog/:id" element={<ProtectedRoute><EditBlogWrapper /></ProtectedRoute>} />
-          <Route path="/admin/comments" element={<ProtectedRoute><CommentManagement /></ProtectedRoute>} />
+        {/* Admin Protected */}
+        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/blogs" element={<ProtectedRoute><BlogManagement /></ProtectedRoute>} />
+        <Route path="/admin/create-blog" element={<ProtectedRoute><AdminBlogForm /></ProtectedRoute>} />
+        <Route path="/admin/edit-blog/:id" element={<ProtectedRoute><EditBlogWrapper /></ProtectedRoute>} />
+        <Route path="/admin/comments" element={<ProtectedRoute><CommentManagement /></ProtectedRoute>} />
 
-          {/* Redirects */}
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
+        {/* Redirects */}
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </Router>
   );
 }
-
 
 export default App;

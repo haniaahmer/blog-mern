@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-
+import api from "../services/api";
 export default function AllBlogs() {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ export default function AllBlogs() {
       setLoading(true);
       setError("");
       
-      const response = await axios.get("http://localhost:8000/api/blogs/get");
+      const response = await api.get("/blogs/get");
       
       console.log("API Response:", response.data);
       
@@ -230,8 +230,7 @@ export default function AllBlogs() {
                       <span>
                         {new Date(blog.createdAt).toLocaleDateString()}
                       </span>
-                      <span>•</span>
-                      <span>{blog.views || 0} views</span>
+                     
                     </div>
                     
                     {/* Read More */}

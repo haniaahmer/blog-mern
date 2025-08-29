@@ -23,6 +23,7 @@ const blogSchema = new mongoose.Schema(
     tags: [
       {
         type: String,
+        trim: true,
       },
     ],
     images: [
@@ -31,17 +32,21 @@ const blogSchema = new mongoose.Schema(
       },
     ],
     author: {
-  id: {
-    type: mongoose.Schema.Types.ObjectId,
-    required: true,
-    refPath: 'author.type', // Dynamically reference the model based on author.type
-  },
-  type: {
-    type: String,
-    enum: ['Admin', 'User'],
-    required: true,
-  },
-},
+      id: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+        refPath: 'author.model', // Changed to 'author.model'
+      },
+      model: { // Changed from 'type' to 'model'
+        type: String,
+        enum: ['Admin', 'User'],
+        required: true,
+      },
+      name: { // Add author name for easier access
+        type: String,
+        required: true
+      }
+    },
     views: {
       type: Number,
       default: 0,
@@ -63,5 +68,8 @@ const blogSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Ensure unique index on slug
+blogSchema.index({ slug: 1 }, { unique: true });
 
 export default mongoose.model('Blog', blogSchema);

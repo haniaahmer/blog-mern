@@ -1,20 +1,17 @@
 import express from 'express';
-import { 
- adminLogin, 
-  editorLogin, 
-  verifyAdmin, 
-  seedAdmin, 
-  seedEditor,
-  seedMultipleEditors
-} from '../controllers/authController.js';
+import authController from '../controllers/authController.js';
+import { protect, authorize } from '../Middlewares/auth.js';
 
 const router = express.Router();
 
-router.post('/admin-login', adminLogin);
-router.post('/editor-login', editorLogin);
-router.get('/verify-admin', verifyAdmin);
-router.post('/seed-admin', seedAdmin);
-router.post('/seed-editor', seedEditor);
-router.post('/seed-multiple-editors', seedMultipleEditors);
+// Public routes
+router.post('/admin-login', authController.adminLogin);
+router.post('/editor-login', authController.editorLogin);
+router.post('/seed-admin', authController.seedAdmin);
+router.post('/seed-editor', authController.seedEditor);
+router.post('/seed-multiple-editors', authController.seedMultipleEditors);
+
+// Protected route - use protect middleware instead of authMiddleware
+router.get('/verify', protect, authController.verifyAdmin);
 
 export default router;

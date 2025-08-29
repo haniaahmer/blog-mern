@@ -1,7 +1,7 @@
 // src/components/admin/BlogManagement.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../../services/api";
 
 export default function BlogManagement() {
   const [blogs, setBlogs] = useState([]);
@@ -24,93 +24,90 @@ export default function BlogManagement() {
   }, [navigate]);
 
   const fetchBlogs = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.get("/api/blogs/get", { // Added /api prefix
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
-      
-      // Handle different response structures safely
-      let blogsData = [];
-      
-      if (Array.isArray(response.data)) {
-        blogsData = response.data;
-      } else if (response.data && Array.isArray(response.data.blogs)) {
-        blogsData = response.data.blogs;
-      } else if (response.data && Array.isArray(response.data.data)) {
-        blogsData = response.data.data;
-      }
-      
-      setBlogs(blogsData);
-    } catch (error) {
-      console.error("Error fetching blogs:", error);
-      
-      if (error.response?.status === 401) {
-        localStorage.removeItem("adminToken");
-        navigate("/admin/login");
-        return;
-      }
-      
-      setError("Failed to load blogs");
-      setBlogs([]); // Ensure blogs is always an array
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    setError('');
+    
+    const token = localStorage.getItem('adminToken');
+    const response = await api.get('/blogs/get', {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+    
+    let blogsData = [];
+    
+    if (Array.isArray(response.data)) {
+      blogsData = response.data;
+    } else if (response.data && Array.isArray(response.data.blogs)) {
+      blogsData = response.data.blogs;
+    } else if (response.data && Array.isArray(response.data.data)) {
+      blogsData = response.data.data;
     }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this blog post? This action cannot be undone.")) {
+    
+    setBlogs(blogsData);
+  } catch (error) {
+    console.error('Error fetching blogs:', error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem('adminToken');
+      navigate('/admin/login');
       return;
     }
+    
+    setError(error.response?.data?.error || 'Failed to load blogs');
+    setBlogs([]);
+  } finally {
+    setLoading(false);
+  }
+};
+  const handleDelete = async (id) => {
+  if (!window.confirm('Are you sure you want to delete this blog post? This action cannot be undone.')) {
+    return;
+  }
 
-    setDeleteLoading(prev => ({ ...prev, [id]: true }));
+  setDeleteLoading(prev => ({ ...prev, [id]: true }));
 
-    try {
-      const token = localStorage.getItem("adminToken");
-      await axios.delete(`/api/blogs/delete/${id}`, { // Added /api prefix
+  try {
+    const token = localStorage.getItem('adminToken');
+    await api.delete(`/api/blogs/delete/${id}`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+    
+    setBlogs(prevBlogs => prevBlogs.filter(blog => blog._id !== id));
+  } catch (error) {
+    console.error('Error deleting blog:', error);
+    alert(error.response?.data?.error || 'Failed to delete blog post');
+  } finally {
+    setDeleteLoading(prev => ({ ...prev, [id]: false }));
+  }
+};
+  const handleTogglePublish = async (id, currentStatus) => {
+  try {
+    const token = localStorage.getItem('adminToken');
+    await api.put(
+      `/api/blogs/update/${id}/toggle-publish`,
+      { published: !currentStatus },
+      {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-      });
-      
-      setBlogs(prevBlogs => prevBlogs.filter(blog => blog._id !== id));
-    } catch (error) {
-      console.error("Error deleting blog:", error);
-      alert("Failed to delete blog post");
-    } finally {
-      setDeleteLoading(prev => ({ ...prev, [id]: false }));
-    }
-  };
-
-  const handleTogglePublish = async (id, currentStatus) => {
-    try {
-      const token = localStorage.getItem("adminToken");
-      await axios.put(
-        `/api/blogs/update/${id}/toggle-publish`, // Added /api prefix
-        { published: !currentStatus },
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-        }
-      );
-      
-      setBlogs(prevBlogs => prevBlogs.map(blog => 
-        blog._id === id ? { ...blog, published: !currentStatus } : blog
-      ));
-    } catch (error) {
-      console.error("Error toggling publish status:", error);
-      alert("Failed to update publish status");
-    }
-  };
+      }
+    );
+    
+    setBlogs(prevBlogs => prevBlogs.map(blog => 
+      blog._id === id ? { ...blog, published: !currentStatus } : blog
+    ));
+  } catch (error) {
+    console.error('Error toggling publish status:', error);
+    alert(error.response?.data?.error || 'Failed to update publish status');
+  }
+};
 
   const handleEdit = (blogId) => {
     navigate(`/admin/edit-blog/${blogId}`);
@@ -263,7 +260,7 @@ export default function BlogManagement() {
                           <div className="flex-shrink-0 h-10 w-10 mr-4">
                             <img
                               className="h-10 w-10 rounded-lg object-cover"
-                              src={`http://localhost:5000/uploads/${blog.images[0]}`}
+                              src={`http://localhost:8000/uploads/${blog.images[0]}`}
                               alt={blog.title}
                               onError={(e) => {
                                 e.target.style.display = 'none';

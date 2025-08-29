@@ -1,11 +1,15 @@
-// server.js
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import routes from './routes/index.js';
+import authRoutes from './routes/authRoutes.js';
+import blogRoutes from './routes/blogRoutes.js';
+import commentRoutes from './routes/commentRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 dotenv.config();
 
@@ -25,7 +29,7 @@ mongoose
 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:5173", 
+  origin: "http://localhost:5173",
   credentials: true
 }));
 app.use(express.json());
@@ -41,9 +45,22 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
 
 // API Routes
-app.use('/api', routes);
+app.use('/api/auth', authRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
-// Serve static files for frontend (if you have a build folder)
+// Root endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'Blog CMS API is running!',
+    version: '1.0.0'
+  });
+});
+
+// Serve static files for frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Catch-all handler for frontend routing (SPA support)
@@ -66,6 +83,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 8000;
 
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📚 API Documentation: http://localhost:${PORT}/api`);
+  console.log(`✅ Server running on http://localhost:${PORT}/api`);
 });

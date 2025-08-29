@@ -2,12 +2,13 @@ import Blog from '../models/Blog.js';
 import Admin from '../models/Admin.js';
 import User from '../models/authModel.js';
 import slugify from 'slugify';
-import Comment from '../models/Comment.js'
+import Comment from '../models/Comment.js';
 
 export const createBlog = async (req, res) => {
-  console.log('🔔 [createBlog] Request body:', req.body);
-  console.log('🔔 [createBlog] Uploaded files:', req.files);
-  console.log('🔔 [createBlog] User:', req.user);
+  console.log('🔨 [createBlog] Entry');
+  console.log('🔨 [createBlog] Request body:', req.body);
+  console.log('🔨 [createBlog] Uploaded files:', req.files);
+  console.log('🔨 [createBlog] User:', req.user);
   try {
     const { title, content, category, tags, excerpt, published } = req.body;
 
@@ -16,11 +17,10 @@ export const createBlog = async (req, res) => {
       return res.status(400).json({ error: 'Title, content, and category are required' });
     }
 
-    // Ensure user is an admin or superadmin
-    console.log('🔍 [createBlog] User role:', req.user.role);
-    if (!['admin', 'superadmin'].includes(req.user.role)) {
+    // Allow admins, superadmins, and editors to create blogs
+    if (!['admin', 'superadmin', 'editor'].includes(req.user.role)) {
       console.warn('⚠️ [createBlog] Unauthorized role:', req.user.role);
-      return res.status(403).json({ error: 'Only admins can create blogs' });
+      return res.status(403).json({ error: 'Only admins and editors can create blogs' });
     }
 
     let baseSlug = slugify(title, { lower: true, strict: true });
@@ -32,7 +32,7 @@ export const createBlog = async (req, res) => {
     }
 
     const images = req.files?.map(file => file.filename) || [];
-    console.log('🔍 [createBlog] Images:', images);
+    console.log('📸 [createBlog] Images:', images);
 
     const blog = await Blog.create({
       title: title.trim(),
@@ -45,7 +45,7 @@ export const createBlog = async (req, res) => {
       slug,
       author: {
         id: req.user.id,
-        type: 'Admin',
+        type: req.user.role === 'editor' ? 'User' : 'Admin',
       },
     });
 
@@ -58,10 +58,11 @@ export const createBlog = async (req, res) => {
 };
 
 export const updateBlog = async (req, res) => {
-  console.log('🔔 [updateBlog] Blog ID:', req.params.id);
-  console.log('🔔 [updateBlog] Request body:', req.body);
-  console.log('🔔 [updateBlog] Uploaded files:', req.files);
-  console.log('🔔 [updateBlog] User:', req.user);
+  console.log('🔨 [updateBlog] Entry');
+  console.log('🔨 [updateBlog] Blog ID:', req.params.id);
+  console.log('🔨 [updateBlog] Request body:', req.body);
+  console.log('🔨 [updateBlog] Uploaded files:', req.files);
+  console.log('🔨 [updateBlog] User:', req.user);
   try {
     const { title, content, category, tags, excerpt, published } = req.body;
     const images = req.files?.map(file => file.filename);
@@ -73,7 +74,8 @@ export const updateBlog = async (req, res) => {
     }
 
     // Check if user is authorized (author or admin/superadmin)
-    const isAuthor = blog.author.type === 'Admin' && blog.author.id.toString() === req.user.id;
+    const isAuthor = (blog.author.type === 'Admin' || blog.author.type === 'User') &&
+      blog.author.id.toString() === req.user.id;
     const isAdminOrSuperadmin = ['admin', 'superadmin'].includes(req.user.role);
 
     console.log('🔍 [updateBlog] isAuthor:', isAuthor, 'isAdminOrSuperadmin:', isAdminOrSuperadmin);
@@ -111,8 +113,9 @@ export const updateBlog = async (req, res) => {
 };
 
 export const deleteBlog = async (req, res) => {
-  console.log('🔔 [deleteBlog] Blog ID:', req.params.id);
-  console.log('🔔 [deleteBlog] User:', req.user);
+  console.log('🔨 [deleteBlog] Entry');
+  console.log('🔨 [deleteBlog] Blog ID:', req.params.id);
+  console.log('🔨 [deleteBlog] User:', req.user);
   try {
     const blog = await Blog.findById(req.params.id);
     if (!blog) {
@@ -121,7 +124,8 @@ export const deleteBlog = async (req, res) => {
     }
 
     // Check if user is authorized (author or admin/superadmin)
-    const isAuthor = blog.author.type === 'Admin' && blog.author.id.toString() === req.user.id;
+    const isAuthor = (blog.author.type === 'Admin' || blog.author.type === 'User') &&
+      blog.author.id.toString() === req.user.id;
     const isAdminOrSuperadmin = ['admin', 'superadmin'].includes(req.user.role);
 
     console.log('🔍 [deleteBlog] isAuthor:', isAuthor, 'isAdminOrSuperadmin:', isAdminOrSuperadmin);
@@ -141,70 +145,169 @@ export const deleteBlog = async (req, res) => {
 };
 
 export const getBlogs = async (req, res) => {
-  console.log('🔔 [getBlogs] Query params:', req.query);
+  console.log('🔨 [getBlogs] Entry');
+  console.log('🔨 [getBlogs] Query params:', req.query);
+  console.log('🔨 [getBlogs] Headers:', req.headers);
+  
   try {
-    const { page = 1, limit = 10, category, tag } = req.query;
-    const query = { published: true };
+    const { 
+      published = 'true', 
+      limit = 50, 
+      page = 1, 
+      category, 
+      search,
+      includeUnpublished = 'false' 
+    } = req.query;
 
-    if (category) query.category = category;
-    if (tag) query.tags = tag;
+    // Build query
+    let query = {};
+    
+    // For admin requests, they might want to see unpublished posts too
+    if (includeUnpublished === 'false') {
+      query.published = published === 'true';
+    }
+    
+    if (category && category !== 'all') {
+      query.category = { $regex: category, $options: 'i' };
+    }
+    
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } },
+        { excerpt: { $regex: search, $options: 'i' } }
+      ];
+    }
 
-    console.log('🔍 [getBlogs] Query:', query);
+    console.log('🔍 [getBlogs] Final query:', JSON.stringify(query, null, 2));
 
+    const skip = (page - 1) * parseInt(limit);
+    
     const blogs = await Blog.find(query)
       .populate({
         path: 'author.id',
-        select: 'email username name',
-        model: function (doc) {
-          return Admin;
-        },
+        select: 'username email'
       })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip);
 
     const total = await Blog.countDocuments(query);
-    console.log(`✅ [getBlogs] Returned ${blogs.length} blogs`);
+
+    console.log(`✅ [getBlogs] Found ${blogs.length} blogs (${total} total)`);
+
+    // Log each blog for debugging
+    blogs.forEach((blog, index) => {
+      console.log(`📖 [getBlogs] Blog ${index + 1}:`, {
+        id: blog._id,
+        title: blog.title,
+        slug: blog.slug,
+        category: blog.category,
+        published: blog.published,
+        views: blog.views || 0,
+        createdAt: blog.createdAt
+      });
+    });
+
     res.json({
       blogs,
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / limit),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
     });
   } catch (error) {
-    console.error('❌ [getBlogs] Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ [getBlogs] Error:', {
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Failed to fetch blogs' });
   }
 };
 
 export const getBlogBySlug = async (req, res) => {
-  console.log('🔔 [getBlogBySlug] Slug:', req.params.slug);
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug, published: true })
-      .populate({
-        path: 'author.id',
-        select: 'email username name',
-        model: function (doc) {
-          return Admin;
-        },
-      });
+    const { slug } = req.params;
+
+    // Find blog and increment views in one go
+    const blog = await Blog.findOneAndUpdate(
+      { slug },
+      { $inc: { views: 1 } },   // increment views by 1
+      { new: true }             // return updated doc
+    );
+
     if (!blog) {
-      console.warn('⚠️ [getBlogBySlug] Blog not found for slug:', req.params.slug);
-      return res.status(404).json({ message: 'Blog not found' });
+      return res.status(404).json({ error: "Blog not found" });
     }
 
-    blog.views += 1;
+    res.status(200).json(blog);
+  } catch (error) {
+    console.error("❌ [getBlogBySlug] Error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getBlogById = async (req, res) => {
+  console.log('🔨 [getBlogById] Entry');
+  console.log('🔨 [getBlogById] Request params:', req.params);
+  
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      console.warn('⚠️ [getBlogById] No ID provided');
+      return res.status(400).json({ error: 'Blog ID is required' });
+    }
+
+    console.log('🔍 [getBlogById] Looking for blog with ID:', id);
+    
+    const blog = await Blog.findById(id)
+      .populate({
+        path: 'author.id',
+        select: 'username email'
+      });
+      
+    if (!blog) {
+      console.warn('⚠️ [getBlogById] Blog not found for ID:', id);
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    if (!blog.published) {
+      console.warn('⚠️ [getBlogById] Blog not published for ID:', id);
+      return res.status(404).json({ error: 'Blog not found or not published' });
+    }
+
+    console.log('✅ [getBlogById] Blog found:', {
+      id: blog._id,
+      title: blog.title,
+      published: blog.published,
+      views: blog.views
+    });
+
+    // Increment view count
+    blog.views = (blog.views || 0) + 1;
     await blog.save();
-    console.log('✅ [getBlogBySlug] Blog found:', blog._id);
+    
     res.json(blog);
   } catch (error) {
-    console.error('❌ [getBlogBySlug] Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ [getBlogById] Error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid blog ID format',
+        provided: req.params.id
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch blog' });
   }
 };
 
 export const likeBlog = async (req, res) => {
-  console.log('🔔 [likeBlog] Blog ID:', req.params.id);
+  console.log('🔨 [likeBlog] Entry');
+  console.log('🔨 [likeBlog] Blog ID:', req.params.id);
   try {
     const blog = await Blog.findById(req.params.id);
     if (!blog || !blog.published) {
@@ -212,7 +315,7 @@ export const likeBlog = async (req, res) => {
       return res.status(404).json({ message: 'Blog not found or not published' });
     }
 
-    blog.likes += 1;
+    blog.likes = (blog.likes || 0) + 1;
     await blog.save();
     console.log('✅ [likeBlog] Blog liked:', blog._id, 'Total likes:', blog.likes);
     res.json({ likes: blog.likes });
@@ -222,45 +325,31 @@ export const likeBlog = async (req, res) => {
   }
 };
 
+// Legacy comment methods - keeping for backward compatibility
 export const createComment = async (req, res) => {
-  console.log('🔔 [createComment] Request body:', req.body);
-  try {
-    const { blogId, content, name, email } = req.body;
-
-    if (!blogId || !content || !name) {
-      console.warn('⚠️ [createComment] Missing required fields:', { blogId, content, name });
-      return res.status(400).json({ error: 'Blog ID, content, and name are required' });
-    }
-
-    const blog = await Blog.findById(blogId);
-    if (!blog || !blog.published) {
-      console.warn('⚠️ [createComment] Blog not found or not published for ID:', blogId);
-      return res.status(404).json({ error: 'Blog not found or not published' });
-    }
-
-    const comment = await Comment.create({
-      blogId,
-      content: content.trim(),
-      author: { name: name.trim(), email: email?.trim() },
-    });
-
-    console.log('✅ [createComment] Comment created:', comment._id);
-    res.status(201).json(comment);
-  } catch (error) {
-    console.error('❌ [createComment] Error:', error);
-    res.status(500).json({ error: 'Failed to create comment' });
-  }
+  console.log('🔨 [createComment] Legacy method called, redirecting...');
+  // Redirect to the new comment controller
+  const commentController = await import('./commentController.js');
+  return commentController.createComment(req, res);
 };
 
 export const getComments = async (req, res) => {
-  console.log('🔔 [getComments] Blog ID:', req.params.blogId);
-  try {
-    const comments = await Comment.find({ blogId: req.params.blogId })
-      .sort({ createdAt: -1 });
-    console.log('✅ [getComments] Returned comments:', comments.length);
-    res.json(comments);
-  } catch (error) {
-    console.error('❌ [getComments] Error:', error);
-    res.status(500).json({ error: 'Failed to fetch comments' });
-  }
+  console.log('🔨 [getComments] Legacy method called, redirecting...');
+  // Redirect to the new comment controller
+  const commentController = await import('./commentController.js');
+  return commentController.getCommentsByBlog(req, res);
 };
+
+const blogController = {
+  createBlog,
+  updateBlog,
+  deleteBlog,
+  getBlogs,
+  getBlogBySlug,
+  getBlogById,
+  likeBlog,
+  createComment,
+  getComments
+};
+
+export default blogController;

@@ -378,3 +378,13 @@ export const seedMultipleEditors = async (req, res) => {
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
+const authController = {
+  adminLogin,
+  editorLogin,
+  verifyAdmin,
+  seedAdmin,
+  seedEditor,
+  seedMultipleEditors
+};
+
+export default authController;

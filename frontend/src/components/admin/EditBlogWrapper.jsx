@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import AdminBlogForm from "./AdminBlogForm";
-
+import api from "../../services/api";
 const EditBlogWrapper = () => {
   const { id } = useParams();
   const [blogData, setBlogData] = useState(null);
@@ -14,7 +14,7 @@ const EditBlogWrapper = () => {
     const fetchBlog = async () => {
       try {
         const token = localStorage.getItem("adminToken");
-        const response = await axios.get(`http://localhost:8000/api/blogs/get/${id}`, {
+        const response = await api.get(`/blogs/get/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 

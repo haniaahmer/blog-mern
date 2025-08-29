@@ -112,7 +112,7 @@ const AdminBlogForm = ({ blogData, onSuccess }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        response = await api.post("/blogs/add", submitData, {
+        response = await api.post("/blogs/create", submitData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
